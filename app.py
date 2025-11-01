@@ -59,8 +59,11 @@ def stream_audio(video_id):
             'quiet': False,  # Show errors for debugging
             'no_warnings': False,
             'extract_flat': False,
-            'sleep_interval': 2,                 # Sleep between requests
-            'max_sleep_interval': 5,             # Maximum sleep interval
+            'sleep_interval': 5,                 # Sleep between requests (recommended: 5-10s)
+            'max_sleep_interval': 10,            # Maximum sleep interval
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
         }
         
         # Cookie handling priority:
@@ -75,7 +78,7 @@ def stream_audio(video_id):
             ydl_opts['cookiesfrombrowser'] = ('chrome',)
             logger.info("Using cookies from Chrome browser")
         elif os.environ.get('YOUTUBE_COOKIE_FILE'):
-            # Production: use cookie file path
+            # Production: use cookie file path from environment variable
             cookie_file = os.environ.get('YOUTUBE_COOKIE_FILE')
             if os.path.exists(cookie_file):
                 ydl_opts['cookiefile'] = cookie_file
@@ -95,6 +98,14 @@ def stream_audio(video_id):
             except Exception as e:
                 logger.error(f"Error creating temporary cookie file: {e}")
                 cookie_filepath = None
+        else:
+            # Fallback: check for youtube_cookies.txt in the same directory
+            default_cookie_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
+            if os.path.exists(default_cookie_file):
+                ydl_opts['cookiefile'] = default_cookie_file
+                logger.info(f"Using default cookie file: {default_cookie_file}")
+            else:
+                logger.warning("No cookies found. YouTube may block requests.")
         
         youtube_url = f'https://www.youtube.com/watch?v={video_id}'
         
