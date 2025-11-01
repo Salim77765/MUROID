@@ -59,10 +59,14 @@ def stream_audio(video_id):
             'quiet': False,  # Show errors for debugging
             'no_warnings': False,
             'extract_flat': False,
-            'cookiesfrombrowser': ('chrome',),  # Use Chrome cookies for authentication
             'sleep_interval': 2,                 # Sleep between requests
             'max_sleep_interval': 5,             # Maximum sleep interval
         }
+        
+        # Only use cookiesfrombrowser in local development (not in production)
+        # In production, we'll use the cookiefile approach below if YOUTUBE_COOKIES is set
+        if os.environ.get('USE_BROWSER_COOKIES') == 'true':
+            ydl_opts['cookiesfrombrowser'] = ('chrome',)
 
         # Check for YouTube cookies in environment variables
         youtube_cookies = os.environ.get('YOUTUBE_COOKIES')
