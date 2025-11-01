@@ -51,12 +51,34 @@ def stream_audio(video_id):
         logger.info(f"Streaming request for video: {video_id}")
         
         # Configure yt-dlp to get audio URL
+        import os
+        import tempfile
+
         ydl_opts = {
             'format': 'bestaudio/best',
             'quiet': False,  # Show errors for debugging
             'no_warnings': False,
             'extract_flat': False,
+            'cookiesfrombrowser': ('chrome',),  # Use Chrome cookies for authentication
+            'sleep_interval': 2,                 # Sleep between requests
+            'max_sleep_interval': 5,             # Maximum sleep interval
         }
+
+        # Check for YouTube cookies in environment variables
+        youtube_cookies = os.environ.get('YOUTUBE_COOKIES')
+        cookie_filepath = None
+
+        if youtube_cookies:
+            try:
+                # Create a temporary file to store cookies
+                fd, cookie_filepath = tempfile.mkstemp(suffix='.txt')
+                with os.fdopen(fd, 'w') as tmp:
+                    tmp.write(youtube_cookies)
+                ydl_opts['cookiefile'] = cookie_filepath
+                logger.info("Using YouTube cookies from environment variable.")
+            except Exception as e:
+                logger.error(f"Error creating temporary cookie file: {e}")
+                cookie_filepath = None
         
         youtube_url = f'https://www.youtube.com/watch?v={video_id}'
         
@@ -125,6 +147,13 @@ def stream_audio(video_id):
     except Exception as e:
         logger.error(f"Stream error: {str(e)}")
         return jsonify({'error': str(e)}), 500
+    finally:
+        if cookie_filepath and os.path.exists(cookie_filepath):
+            try:
+                os.remove(cookie_filepath)
+                logger.info(f"Removed temporary cookie file: {cookie_filepath}")
+            except Exception as e:
+                logger.error(f"Error removing temporary cookie file {cookie_filepath}: {e}")
 
 @app.route('/api/artist/<browse_id>', methods=['GET'])
 def get_artist(browse_id):
