@@ -63,16 +63,28 @@ def stream_audio(video_id):
             'max_sleep_interval': 5,             # Maximum sleep interval
         }
         
-        # Only use cookiesfrombrowser in local development (not in production)
-        # In production, we'll use the cookiefile approach below if YOUTUBE_COOKIES is set
-        if os.environ.get('USE_BROWSER_COOKIES') == 'true':
-            ydl_opts['cookiesfrombrowser'] = ('chrome',)
-
-        # Check for YouTube cookies in environment variables
-        youtube_cookies = os.environ.get('YOUTUBE_COOKIES')
+        # Cookie handling priority:
+        # 1. Use browser cookies in local dev (if USE_BROWSER_COOKIES=true)
+        # 2. Use cookie file path (if YOUTUBE_COOKIE_FILE is set)
+        # 3. Use cookie content from env var (if YOUTUBE_COOKIES is set) - legacy support
+        
         cookie_filepath = None
-
-        if youtube_cookies:
+        
+        if os.environ.get('USE_BROWSER_COOKIES') == 'true':
+            # Local development: use Chrome browser cookies directly
+            ydl_opts['cookiesfrombrowser'] = ('chrome',)
+            logger.info("Using cookies from Chrome browser")
+        elif os.environ.get('YOUTUBE_COOKIE_FILE'):
+            # Production: use cookie file path
+            cookie_file = os.environ.get('YOUTUBE_COOKIE_FILE')
+            if os.path.exists(cookie_file):
+                ydl_opts['cookiefile'] = cookie_file
+                logger.info(f"Using cookie file: {cookie_file}")
+            else:
+                logger.warning(f"Cookie file not found: {cookie_file}")
+        elif os.environ.get('YOUTUBE_COOKIES'):
+            # Legacy: use cookie content from environment variable
+            youtube_cookies = os.environ.get('YOUTUBE_COOKIES')
             try:
                 # Create a temporary file to store cookies
                 fd, cookie_filepath = tempfile.mkstemp(suffix='.txt')
