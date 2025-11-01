@@ -23,11 +23,11 @@ last_youtube_request_time = 0
 youtube_request_lock = Lock()
 # Check if running in production (Render sets PORT env var)
 IS_PRODUCTION = os.environ.get('PORT') is not None
-MIN_REQUEST_INTERVAL = 3 if IS_PRODUCTION else 0  # 3s in production, 0s locally
+MIN_REQUEST_INTERVAL = 10 if IS_PRODUCTION else 0  # 10s in production (increased from 3s), 0s locally
 
 # Log startup mode
 if IS_PRODUCTION:
-    logger.info("🚀 Running in PRODUCTION mode - Rate limiting ENABLED (3s interval)")
+    logger.info(f"🚀 Running in PRODUCTION mode - Rate limiting ENABLED ({MIN_REQUEST_INTERVAL}s interval)")
 else:
     logger.info("💻 Running in LOCAL mode - Rate limiting DISABLED")
 
