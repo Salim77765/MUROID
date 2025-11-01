@@ -3,6 +3,8 @@ from flask_cors import CORS
 from ytmusicapi import YTMusic
 import yt_dlp
 import logging
+import time
+from threading import Lock
 
 app = Flask(__name__)
 CORS(app)
@@ -13,6 +15,11 @@ ytmusic = YTMusic()
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Rate limiting for YouTube requests
+last_youtube_request_time = 0
+youtube_request_lock = Lock()
+MIN_REQUEST_INTERVAL = 3  # Minimum 3 seconds between YouTube requests
 
 @app.route('/api/search', methods=['GET'])
 def search():
@@ -44,11 +51,27 @@ def get_song(video_id):
 @app.route('/api/stream/<video_id>', methods=['GET'])
 def stream_audio(video_id):
     """Download and stream audio directly from backend"""
+    global last_youtube_request_time
+    
     try:
         import requests
         from flask import Response
         
         logger.info(f"Streaming request for video: {video_id}")
+        
+        # Rate limiting: ensure minimum time between requests
+        # This blocks ALL concurrent requests to prevent rate limiting
+        with youtube_request_lock:
+            current_time = time.time()
+            time_since_last_request = current_time - last_youtube_request_time
+            
+            if time_since_last_request < MIN_REQUEST_INTERVAL:
+                wait_time = MIN_REQUEST_INTERVAL - time_since_last_request
+                logger.info(f"⏱️ Rate limiting: waiting {wait_time:.1f}s before YouTube request (queue protection)")
+                time.sleep(wait_time)
+            
+            # Update timestamp BEFORE releasing the lock to ensure next request waits
+            last_youtube_request_time = time.time()
         
         # Configure yt-dlp to get audio URL
         import os
@@ -103,9 +126,15 @@ def stream_audio(video_id):
             default_cookie_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
             if os.path.exists(default_cookie_file):
                 ydl_opts['cookiefile'] = default_cookie_file
-                logger.info(f"Using default cookie file: {default_cookie_file}")
+                logger.info(f"✅ Using default cookie file: {default_cookie_file}")
+                logger.info(f"Cookie file size: {os.path.getsize(default_cookie_file)} bytes")
             else:
-                logger.warning("No cookies found. YouTube may block requests.")
+                logger.warning("⚠️ No cookies found. YouTube may block requests.")
+        
+        # Log final yt-dlp configuration
+        logger.info(f"yt-dlp config: format={ydl_opts.get('format')}, "
+                   f"sleep={ydl_opts.get('sleep_interval')}-{ydl_opts.get('max_sleep_interval')}s, "
+                   f"cookies={'YES' if 'cookiefile' in ydl_opts or 'cookiesfrombrowser' in ydl_opts else 'NO'}")
         
         youtube_url = f'https://www.youtube.com/watch?v={video_id}'
         
@@ -226,8 +255,22 @@ def get_home():
 @app.route('/api/watch/<video_id>', methods=['GET'])
 def get_watch_playlist(video_id):
     """Get watch playlist (similar songs)"""
+    global last_youtube_request_time
+    
     try:
         logger.info(f"Fetching watch playlist for video: {video_id}")
+        
+        # Rate limiting: ensure minimum time between YouTube API requests
+        with youtube_request_lock:
+            current_time = time.time()
+            time_since_last_request = current_time - last_youtube_request_time
+            
+            if time_since_last_request < MIN_REQUEST_INTERVAL:
+                wait_time = MIN_REQUEST_INTERVAL - time_since_last_request
+                logger.info(f"⏱️ Rate limiting: waiting {wait_time:.1f}s before watch playlist request")
+                time.sleep(wait_time)
+            
+            last_youtube_request_time = time.time()
         
         # Add retry mechanism for ytmusicapi call
         max_retries = 3
