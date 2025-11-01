@@ -4,6 +4,7 @@ from ytmusicapi import YTMusic
 import yt_dlp
 import logging
 import time
+import os
 from threading import Lock
 
 app = Flask(__name__)
@@ -17,9 +18,18 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Rate limiting for YouTube requests
+# Only needed in production (Render) due to shared IP and higher scrutiny
 last_youtube_request_time = 0
 youtube_request_lock = Lock()
-MIN_REQUEST_INTERVAL = 3  # Minimum 3 seconds between YouTube requests
+# Check if running in production (Render sets PORT env var)
+IS_PRODUCTION = os.environ.get('PORT') is not None
+MIN_REQUEST_INTERVAL = 3 if IS_PRODUCTION else 0  # 3s in production, 0s locally
+
+# Log startup mode
+if IS_PRODUCTION:
+    logger.info("🚀 Running in PRODUCTION mode - Rate limiting ENABLED (3s interval)")
+else:
+    logger.info("💻 Running in LOCAL mode - Rate limiting DISABLED")
 
 @app.route('/api/search', methods=['GET'])
 def search():
